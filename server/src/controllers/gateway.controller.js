@@ -1,9 +1,10 @@
-import httpProxy from 'http-proxy';
-import crypto from 'crypto';
-import { UserConfig } from '../models/UserConfigs.model.js';
-import { asyncHandler } from '../utils/asyncHandler.js';
-import { ApiError } from '../utils/ApiError.js';
-import { updateRequestCount } from '../webSocket/wsServer.js';
+// backend/controllers/gateway.controller.js
+import httpProxy from "http-proxy";
+import crypto from "crypto";
+import { UserConfig } from "../models/UserConfigs.model.js";
+import { asyncHandler } from "../utils/asyncHandler.js";
+import { ApiError } from "../utils/ApiError.js";
+import { updateRequestCount } from "../webSocket/wsServer.js";
 
 const proxy = httpProxy.createProxyServer({});
 const counters = {};
@@ -11,11 +12,11 @@ const stickyMap = {};
 const activeConnections = {}; // For least-connections tracking
 
 const handleRequest = asyncHandler(async (req, res) => {
-  const domain = req.headers.host?.split(':')[0]; // remove port if present
+  const domain = req.headers.host?.split(":")[0]; // Remove port if present
   const config = await UserConfig.findOne({ domain });
 
   if (!config) {
-    throw new ApiError(404, 'Configuration not found for this domain');
+    throw new ApiError(404, "Configuration not found for this domain");
   }
 
   // Initialize connections for least-connections
@@ -25,17 +26,18 @@ const handleRequest = asyncHandler(async (req, res) => {
   }
 
   let target;
-  const clientIP = req.headers['x-forwarded-for'] || req.connection.remoteAddress;
+  const clientIP =
+    req.headers["x-forwarded-for"] || req.connection.remoteAddress;
 
   switch (config.algorithm) {
-    case 'round-robin': {
+    case "round-robin": {
       const index = (counters[domain] || 0) % config.servers.length;
       target = config.servers[index];
       counters[domain] = index + 1;
       break;
     }
 
-    case 'least-connections': {
+    case "least-connections": {
       let minConn = Infinity;
       let selected = null;
       for (const server of config.servers) {
@@ -49,16 +51,17 @@ const handleRequest = asyncHandler(async (req, res) => {
       break;
     }
 
-    case 'random': {
+    case "random": {
       const randIndex = Math.floor(Math.random() * config.servers.length);
       target = config.servers[randIndex];
       break;
     }
 
-    case 'weighted-round-robin': {
-      const weights = config.weights?.length === config.servers.length
-        ? config.weights
-        : Array(config.servers.length).fill(1);
+    case "weighted-round-robin": {
+      const weights =
+        config.weights?.length === config.servers.length
+          ? config.weights
+          : Array(config.servers.length).fill(1);
       const weightedList = [];
       config.servers.forEach((server, i) => {
         for (let j = 0; j < weights[i]; j++) {
@@ -71,14 +74,14 @@ const handleRequest = asyncHandler(async (req, res) => {
       break;
     }
 
-    case 'ip-hash': {
-      const hash = crypto.createHash('sha1').update(clientIP).digest('hex');
+    case "ip-hash": {
+      const hash = crypto.createHash("sha1").update(clientIP).digest("hex");
       const ipIndex = parseInt(hash.slice(0, 8), 16) % config.servers.length;
       target = config.servers[ipIndex];
       break;
     }
 
-    case 'sticky-session': {
+    case "sticky-session": {
       if (!stickyMap[domain]) stickyMap[domain] = {};
       if (!stickyMap[domain][clientIP]) {
         const sIndex = (counters[domain] || 0) % config.servers.length;
@@ -89,7 +92,7 @@ const handleRequest = asyncHandler(async (req, res) => {
       break;
     }
 
-    case 'ml-prediction': {
+    case "ml-prediction": {
       target = config.servers[0]; // Replace with real ML logic later
       break;
     }
@@ -100,21 +103,27 @@ const handleRequest = asyncHandler(async (req, res) => {
   }
 
   if (!target) {
-    return res.status(500).send('No target server could be selected.');
+    return res.status(500).send("No target server could be selected.");
   }
 
   // Track connections for least-connections
   activeConnections[domain][target] += 1;
-  updateRequestCount(target);
+  await updateRequestCount(domain, target); // Pass domain first, then target server
 
   proxy.web(req, res, { target }, (err) => {
-    activeConnections[domain][target] = Math.max(activeConnections[domain][target] - 1, 0);
-    res.status(502).send('Error forwarding request');
+    activeConnections[domain][target] = Math.max(
+      activeConnections[domain][target] - 1,
+      0
+    );
+    res.status(502).send("Error forwarding request");
   });
 
   // Handle request completion to decrement active count
-  res.on('close', () => {
-    activeConnections[domain][target] = Math.max(activeConnections[domain][target] - 1, 0);
+  res.on("close", () => {
+    activeConnections[domain][target] = Math.max(
+      activeConnections[domain][target] - 1,
+      0
+    );
   });
 });
 
