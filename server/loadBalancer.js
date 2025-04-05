@@ -3,10 +3,19 @@ const express = require("express");
 const axios = require("axios");
 const WebSocket = require("ws");
 const cors = require("cors");
+const rateLimit = require("express-rate-limit");
 
 const app = express();
 const server = http.createServer(app);
 const wss = new WebSocket.Server({ server });
+
+const limiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 100, // limit each IP to 100 requests per windowMs
+  message: "Too many requests from this IP, please try again later.",
+  standardHeaders: true, // Return rate limit info in headers
+  legacyHeaders: false,
+});
 
 app.use(
   cors({
@@ -17,6 +26,8 @@ app.use(
 );
 
 app.use(express.json());
+
+const stickyMap = {}; // { ip: index }
 
 let backendServers = [
   { url: "http://localhost:4000", connections: 0 },
@@ -128,7 +139,7 @@ const getMLPrediction = async () => {
   }
 };
 
-app.get("/balance-request", async (req, res) => {
+app.get("/balance-request", limiter , async (req, res) => {
   let server;
   try {
     if (backendServers.length === 0) {
@@ -138,18 +149,33 @@ app.get("/balance-request", async (req, res) => {
     if (currentStrategy === "round-robin") {
       server = backendServers[currentServerIndex];
       currentServerIndex = (currentServerIndex + 1) % backendServers.length;
-    } else if (currentStrategy === "least-connections") {
+    } 
+    else if (currentStrategy === "least-connections") {
       server = backendServers.reduce((prev, curr) =>
         prev.connections < curr.connections ? prev : curr
       );
-    } else if (currentStrategy === "ip-hashing") {
+    }
+    else if (currentStrategy === "ip-hashing") {
       const clientIp = req.ip || "127.0.0.1";
       const serverIndex = ipHash(clientIp);
       server = backendServers[serverIndex];
-    } else if (currentStrategy === "ml-model") {
+    }
+    else if (currentStrategy === "ml-model") {
       const serverIndex = await getMLPrediction();
       server = backendServers[serverIndex];
     }
+    else if (currentStrategy === "random") {
+      const index = Math.floor(Math.random() * backendServers.length);
+      server = backendServers[index];
+    }
+    else if (currentStrategy === "sticky-session") {
+      const clientIp = req.ip || "127.0.0.1";
+      if (!stickyMap[clientIp]) {
+        stickyMap[clientIp] = Math.floor(Math.random() * backendServers.length);
+      }
+      server = backendServers[stickyMap[clientIp]];
+    }
+    
 
     if (!server || !isValidUrl(server.url)) {
       throw new Error(`Invalid server URL: ${server?.url || "undefined"}`);
