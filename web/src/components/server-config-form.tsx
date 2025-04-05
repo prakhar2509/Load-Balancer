@@ -153,6 +153,8 @@ export function ServerConfigForm() {
                     </SelectItem>
                     <SelectItem value="ip-hashing">IP Hash</SelectItem>
                     <SelectItem value="ml-model">ML Based</SelectItem>
+                    <SelectItem value="random">Random</SelectItem>
+                    <SelectItem value="sticky-session">Sticky Session</SelectItem>
                   </SelectContent>
                 </Select>
                 <Button type="submit" className="w-full mt-4">
