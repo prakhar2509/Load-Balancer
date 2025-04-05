@@ -13,7 +13,7 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // Load Gemini API key
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_KEY);
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
 // Supported algorithms
 const ALGORITHMS = [
@@ -22,7 +22,7 @@ const ALGORITHMS = [
   "least_connections",
   "random",
   "weighted_round_robin",
-  "stick_session"
+  "stick_session",
 ];
 
 // Base prompt for Gemini
@@ -46,20 +46,23 @@ Start with asking your first question based on the initial user input.
 
 // One-shot prompt version (simple generation)
 async function main(promptText) {
-  const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
-
-  const result = await model.generateContent(promptText);
-  const response = await result.response;
-  const text = await response.text();
-
-  return text;
+  const model = genAI.getGenerativeModel({ model: "gemini-2.0-pro-exp" });
+  try {
+    const result = await model.generateContent(promptText);
+    const response = await result.response;
+    const text = await response.text();
+    return text;
+  } catch (error) {
+    console.error("Gemini API error:", error);
+    throw new Error("Failed to generate content");
+  }
 }
 
 let chatHistory = [];
 
 app.post("/ai", async (req, res) => {
   const userInput = req.body.input || "I want to make a software";
-
+  console.log(chatHistory);
   // Initialize history if first message
   if (chatHistory.length === 0) {
     chatHistory.push(`${basePrompt}\n\nInitial user input: ${userInput}`);
@@ -68,36 +71,21 @@ app.post("/ai", async (req, res) => {
   }
 
   try {
-    const maxAttempts = 5;
-    let attempts = 0;
+    const response = await main(chatHistory.join("\n"));
+    console.log("AI Response:\n", response);
+    chatHistory.push(response);
 
-    while (attempts < maxAttempts) {
-      console.log("Chat history:\n", chatHistory.join("\n\n"));
-
-      const response = await main(chatHistory.join("\n"));
-      console.log("AI Response:\n", response);
-
-      chatHistory.push(response);
-
-      try {
-        const parsed = JSON.parse(response);
-        return res.json(parsed); // 🟢 Success: return to frontend
-      } catch {
-        const nextUserReply = await axios.get(); // Placeholder – ideally ask client for input
-        chatHistory.push(nextUserReply);
-        attempts++;
-      }
+    try {
+      const parsed = JSON.parse(response);
+      res.json(parsed); // Success: return JSON to frontend
+    } catch {
+      res.json(response); // Return question as string
     }
-
-    // After max attempts, return last response
-    return res.status(200).json({ message: "Max attempts reached", response: chatHistory[chatHistory.length - 1] });
-
   } catch (err) {
-    console.error("❌ AI Error:", err);
+    console.error("❌ AI Error:", err.message);
     res.status(500).json({ error: "Failed to get AI response" });
   }
 });
-
 
 app.listen(PORT, () => {
   console.log(`AIgen server running on port ${PORT}`);

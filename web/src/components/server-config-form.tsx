@@ -124,22 +124,25 @@ export function ServerConfigForm() {
               <Plus className="h-4 w-4 mr-2" />
               Add Another Server
             </Button>
-            <div className="flex gap-4">
-              <Button
-                type="button"
-                className="w-1/2 mt-4"
-                onClick={() => setActiveTab("algorithm")}
-              >
-                Select Algorithm
-              </Button>
-              <Button
-                type="button"
-                className="w-1/2 mt-4 text-left"
-                onClick={handleAiButtonClcik}
-              >
-                Ask to AI
-              </Button>
-            </div>
+
+            {/* Ask to AI button first (vertically) */}
+            <Button
+              type="button"
+              className="w-full mt-4 text-left bg-blue-600 hover:bg-blue-700 text-white"
+              onClick={handleAiButtonClcik}
+            >
+              Ask to AI
+            </Button>
+
+            {/* Select Algorithm button below */}
+            <Button
+              type="button"
+              className="w-full mt-4"
+              onClick={() => setActiveTab("algorithm")}
+            >
+              Select Algorithm
+            </Button>
+
             {activeTab === "algorithm" && (
               <>
                 <Select value={strategy} onValueChange={setStrategy}>
@@ -154,7 +157,9 @@ export function ServerConfigForm() {
                     <SelectItem value="ip-hashing">IP Hash</SelectItem>
                     <SelectItem value="ml-model">ML Based</SelectItem>
                     <SelectItem value="random">Random</SelectItem>
-                    <SelectItem value="sticky-session">Sticky Session</SelectItem>
+                    <SelectItem value="sticky-session">
+                      Sticky Session
+                    </SelectItem>
                   </SelectContent>
                 </Select>
                 <Button type="submit" className="w-full mt-4">

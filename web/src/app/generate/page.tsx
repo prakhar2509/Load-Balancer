@@ -1,108 +1,145 @@
 "use client";
-import React, { useState } from "react";
-import { Send, Loader2 } from "lucide-react";
 
-const Page = () => {
+import { useState, useEffect, useRef } from "react";
+
+type Message = {
+  text: string;
+  isUser: boolean;
+  isFinal?: boolean;
+};
+
+type FinalResponse = {
+  algorithm: string;
+  reason: string;
+  priority: string;
+};
+
+type ErrorResponse = {
+  error: string;
+};
+
+export default function GeneratePage() {
+  const [messages, setMessages] = useState<Message[]>([
+    { text: "Please briefly describe your use case", isUser: false },
+  ]);
   const [input, setInput] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
-  const [description, setDescription] = useState<string[]>([]);
-  const [error, setError] = useState<string | null>(null);
+  const [isDisabled, setIsDisabled] = useState(false);
+  const chatBodyRef = useRef<HTMLDivElement>(null);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsLoading(true);
-    setError(null);
-    setDescription([]);
-
+  const sendToAI = async (userInput: string) => {
     try {
-      console.log("Sending request to backend...");
-      const response = await fetch("http://localhost:5000/generate", {
+      const response = await fetch("http://localhost:5000/ai", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ input }),
+        body: JSON.stringify({ input: userInput }),
       });
-
-      console.log("Response received:", response);
-
       if (!response.ok) {
-        throw new Error(`Server error: ${response.statusText}`);
+        throw new Error(`HTTP error! status: ${response.status}`);
       }
-
-      const responseText = await response.text();
-      console.log("Raw response:", responseText);
-
-      setDescription([responseText]);
+      const data = await response.json();
+      return data;
     } catch (error) {
-      console.error("Error:", error);
-      setError((error as Error).message);
-    } finally {
-      setIsLoading(false);
+      console.error("Fetch error:", error);
+      return { error: "Network error. Please try again." };
     }
   };
 
+  useEffect(() => {
+    if (chatBodyRef.current) {
+      chatBodyRef.current.scrollTop = chatBodyRef.current.scrollHeight;
+    }
+  }, [messages]);
+
+  const handleSend = async () => {
+    if (!input.trim() || isDisabled) return;
+
+    const userMessage: Message = { text: input, isUser: true };
+    setMessages((prev) => [...prev, userMessage]);
+    setInput("");
+
+    const response = await sendToAI(input);
+    if (response) {
+      if (typeof response === "string") {
+        setMessages((prev) => [...prev, { text: response, isUser: false }]);
+      } else if ("error" in response) {
+        setMessages((prev) => [
+          ...prev,
+          { text: (response as ErrorResponse).error, isUser: false },
+        ]);
+      } else if ("algorithm" in response) {
+        const finalResponse = response as FinalResponse;
+        const finalText = `Algorithm: ${finalResponse.algorithm}\nReason: ${finalResponse.reason}\nPriority: ${finalResponse.priority}`;
+        setMessages((prev) => [
+          ...prev,
+          { text: finalText, isUser: false, isFinal: true },
+        ]);
+        setIsDisabled(true);
+      }
+    }
+  };
+
+  const handleKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter" && !isDisabled) handleSend();
+  };
+
   return (
-    <div className="max-w-3xl mx-auto p-6">
-      <div className="bg-gray-800 rounded-lg shadow-xl p-6 border border-gray-700">
-        <h2 className="text-2xl font-bold text-white mb-4">
-          Algorithm Suggestion Generator
-        </h2>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-gray-300 text-sm font-medium mb-2">
-              Describe your use case
-            </label>
-            <textarea
-              className="w-full px-4 py-2 rounded-lg bg-gray-700 text-white border border-gray-600 focus:border-blue-500 focus:ring-2 focus:ring-blue-500 focus:outline-none"
-              rows={4}
+    <div className="bg-gray-50 min-h-screen flex items-center justify-center p-4">
+      <div className="w-full max-w-2xl bg-white rounded-xl shadow-lg flex flex-col overflow-hidden">
+        {/* Header */}
+        <div className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white p-4 flex items-center justify-between">
+          <h1 className="text-xl font-bold tracking-tight">Load Balancer AI</h1>
+          <span className="text-sm opacity-75">Powered by GeminiAI</span>
+        </div>
+
+        {/* Chat Body */}
+        <div
+          ref={chatBodyRef}
+          className="flex-1 p-6 bg-gray-100 overflow-y-auto max-h-[70vh] space-y-4"
+        >
+          {messages.map((msg, index) => (
+            <div
+              key={index}
+              className={`flex ${msg.isUser ? "justify-end" : "justify-start"}`}
+            >
+              <div
+                className={`max-w-[70%] p-4 rounded-lg shadow-md ${
+                  msg.isUser
+                    ? "bg-blue-600 text-white"
+                    : msg.isFinal
+                    ? "bg-green-500 text-white text-center mx-auto"
+                    : "bg-white text-gray-800"
+                }`}
+              >
+                <p className="text-sm leading-relaxed whitespace-pre-wrap">
+                  {msg.text}
+                </p>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Input Area */}
+        <div className="p-4 border-t border-gray-200 bg-white">
+          <div className="flex items-center space-x-3">
+            <input
+              type="text"
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              placeholder="Example: I need to sort a large dataset efficiently..."
+              onKeyPress={handleKeyPress}
+              placeholder="Type your response..."
+              disabled={isDisabled}
+              className="flex-1 p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed text-sm transition-all"
             />
+            <button
+              onClick={handleSend}
+              disabled={isDisabled}
+              className="px-5 py-3 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-sm font-medium transition-colors"
+            >
+              Send
+            </button>
           </div>
-          <button
-            type="submit"
-            disabled={isLoading || !input.trim()}
-            className={`w-full flex items-center justify-center px-4 py-2 rounded-lg text-white font-medium transition-all duration-200 shadow-md ${
-              isLoading || !input.trim()
-                ? "bg-gray-600 cursor-not-allowed"
-                : "bg-blue-600 hover:bg-blue-700 shadow-lg"
-            }`}
-          >
-            {isLoading ? (
-              <>
-                <Loader2 className="animate-spin -ml-1 mr-2 h-5 w-5" />
-                Generating...
-              </>
-            ) : (
-              <>
-                <Send className="mr-2 h-5 w-5" />
-                Get Suggestion
-              </>
-            )}
-          </button>
-        </form>
-
-        {error && (
-          <div className="mt-4 p-4 bg-red-600 text-white rounded-lg">
-            <p>{error}</p>
-          </div>
-        )}
-
-        {description.length > 0 && (
-          <div className="mt-8 p-6 bg-gray-700 rounded-lg">
-            <h3 className="text-xl font-bold text-white mb-4">
-              Suggested Approach
-            </h3>
-            <ul className="list-disc list-inside text-gray-300 space-y-2">
-              {description.map((point, index) => (
-                <li key={index}>{point}</li>
-              ))}
-            </ul>
-          </div>
-        )}
+        </div>
       </div>
     </div>
   );
-};
-
-export default Page;
+}
