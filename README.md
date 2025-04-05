@@ -64,6 +64,5 @@ node loadBalancer.js
 ![Pic 1](https://github.com/user-attachments/assets/df685c8f-5edd-4174-8867-1fc41b8790d2)
 ![pic 2](https://github.com/user-attachments/assets/3fb150d9-42c3-4bcb-a04c-4b5dc2dc4b9e)
 ![pic 3](https://github.com/user-attachments/assets/0f867d5b-eef1-4f13-b530-a2a35875de25)
-![pic_4](https://github.com/user-attachments/assets/6b73b72f-5d40-49c0-891c-ac5340ebef6b)
-![pic 5](https://github.com/user-attachments/assets/e4637b74-ac37-436a-bdc4-bd18399ed9e1)
-![pic 6](https://github.com/user-attachments/assets/30c448a7-a27f-49dc-99a0-f3be0154293b)
+![pic 4](https://github.com/user-attachments/assets/e4637b74-ac37-436a-bdc4-bd18399ed9e1)
+![pic 5](https://github.com/user-attachments/assets/30c448a7-a27f-49dc-99a0-f3be0154293b)
